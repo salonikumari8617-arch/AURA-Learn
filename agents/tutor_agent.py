@@ -11,28 +11,58 @@ def run_tutor_agent(
     user_request=""
 ):
 
-    learner_profile = learner_profile or {}
-    accessibility_context = accessibility_context or {}
+    # -----------------------------------------
+    # Handle request coming from orchestrator
+    # -----------------------------------------
 
-    # If called from route_user_request()
     if user_request:
-        topic = user_request
+        topic=user_request
 
-    learner_type = learner_profile.get(
-        "learner_type",
-        learner_profile.get("disability", "general")
-    )
 
-    preferred_mode = learner_profile.get(
-        "preferred_mode",
-        "text"
-    )
+    # -----------------------------------------
+    # Read learner profile correctly
+    # LearnerProfile is a DATACLASS, not dict
+    # -----------------------------------------
 
-    prompt = f"""
+    learner_type="general"
+    preferred_mode="text"
+
+    if learner_profile is not None:
+
+        learner_type=getattr(
+            learner_profile,
+            "learner_type",
+            "general"
+        )
+
+        preferred_mode=getattr(
+            learner_profile,
+            "preferred_mode",
+            "text"
+        )
+
+
+    # -----------------------------------------
+    # Accessibility context
+    # -----------------------------------------
+
+    if accessibility_context is None:
+        accessibility_context={}
+
+
+    # -----------------------------------------
+    # Create personalized prompt
+    # -----------------------------------------
+
+    prompt=f"""
 You are the Tutor Agent of AURA Learn.
 
-You provide personalized tutoring for
-visually impaired and dyslexic students.
+AURA Learn is an Agentic AI-based Personalized
+Learning Assistant for visually impaired and
+dyslexic students.
+
+Your job is to teach the learner according to
+their learning and accessibility requirements.
 
 Student request:
 {topic}
@@ -52,26 +82,66 @@ Content style:
 Next action:
 {next_action}
 
-Accessibility requirements:
+Accessibility context:
 {accessibility_context}
 
-Instructions:
+
+INSTRUCTIONS:
 
 1. Answer the student's question directly.
-2. Explain the concept step by step.
-3. Use short and clear sentences.
-4. Use simple vocabulary.
-5. Avoid unnecessary technical terminology.
-6. For dyslexic learners, use short paragraphs
-   and structured explanations.
-7. For visually impaired learners, do not depend
-   on diagrams, colours, images, or visual references.
-8. If a visual concept is important, describe it
-   clearly using words.
-9. Give a simple example when useful.
-10. End with one short question to check understanding.
 
-Return:
+2. Explain the concept step by step.
+
+3. Use simple and clear language.
+
+4. Avoid unnecessary technical terminology.
+
+5. Give a simple real-life example whenever useful.
+
+
+PERSONALIZATION RULES:
+
+If learner type is Dyslexic:
+
+- Use short sentences.
+- Use short paragraphs.
+- Break explanations into small steps.
+- Avoid large blocks of text.
+- Highlight important ideas using clear headings.
+- Prefer simple vocabulary.
+
+
+If learner type is Visually Impaired:
+
+- Do not depend on diagrams.
+- Do not depend on colours.
+- Do not say things such as
+  "as you can see in the image".
+- Describe visual concepts completely using words.
+- Make the explanation suitable for text-to-speech.
+- Use clear sequential descriptions.
+
+
+If preferred learning mode is Audio First:
+
+- Write naturally for spoken explanation.
+- Avoid complicated formatting.
+- Use short sentences that sound natural when read aloud.
+
+
+If preferred learning mode is Text + Audio:
+
+- Keep the explanation structured.
+- Make the text suitable for both reading
+  and text-to-speech.
+
+
+If preferred learning mode is Simple Text:
+
+- Use concise and easy-to-read explanations.
+
+
+Return the answer in exactly this structure:
 
 ANSWER:
 <direct answer>
@@ -86,24 +156,35 @@ CHECK UNDERSTANDING:
 <one short question>
 """
 
+
+    # -----------------------------------------
+    # Call LLM
+    # -----------------------------------------
+
     try:
 
-        response = llm_client.generate(prompt)
+        response=llm_client.generate(
+            prompt
+        )
 
         return {
-            "status": "success",
-            "agent": "tutor_agent",
-            "topic": topic,
-            "response": response,
-            "learner_type": learner_type
+            "status":"success",
+            "agent":"tutor_agent",
+            "topic":topic,
+            "response":response,
+            "learner_type":learner_type,
+            "preferred_mode":preferred_mode
         }
+
 
     except Exception as e:
 
         return {
-            "status": "error",
-            "agent": "tutor_agent",
-            "topic": topic,
-            "response": "Unable to generate a tutoring response.",
-            "error": str(e)
+            "status":"error",
+            "agent":"tutor_agent",
+            "topic":topic,
+            "response":"Unable to generate a tutoring response.",
+            "learner_type":learner_type,
+            "preferred_mode":preferred_mode,
+            "error":str(e)
         }
