@@ -1,290 +1,634 @@
+import re
 import streamlit as st
 
 from agents.assessment_agent import run_assessment_agent
+from memory.learner_profile import learner_memory
+from accessibility.accessibility_adapter import accessibility_adapter
 
+
+# =========================================================
+# STYLE
+# =========================================================
+
+def _inject_quiz_styles():
+
+    st.markdown(
+        """
+<style>
+
+.aura-quiz-hero{
+    padding:1.7rem 1.8rem;
+    border:1px solid rgba(0,0,0,0.08);
+    border-radius:18px;
+    background:rgba(255,255,255,0.96);
+    margin-bottom:1.2rem;
+}
+
+.aura-quiz-eyebrow{
+    font-size:0.82rem;
+    font-weight:700;
+    letter-spacing:0.08em;
+    text-transform:uppercase;
+    opacity:0.62;
+    margin-bottom:0.45rem;
+}
+
+.aura-quiz-title{
+    font-size:2.2rem;
+    font-weight:800;
+    margin:0;
+    line-height:1.15;
+}
+
+.aura-quiz-subtitle{
+    margin-top:0.65rem;
+    opacity:0.70;
+    line-height:1.55;
+    font-size:1rem;
+}
+
+.aura-card{
+    padding:1.25rem 1.35rem;
+    border:1px solid rgba(0,0,0,0.08);
+    border-radius:16px;
+    background:rgba(255,255,255,0.95);
+    margin-bottom:1rem;
+}
+
+.aura-card-title{
+    font-size:1.12rem;
+    font-weight:750;
+    margin-bottom:0.25rem;
+}
+
+.aura-card-subtitle{
+    font-size:0.91rem;
+    opacity:0.67;
+    line-height:1.45;
+}
+
+.aura-badge{
+    display:inline-block;
+    padding:0.32rem 0.68rem;
+    border-radius:999px;
+    border:1px solid rgba(0,0,0,0.10);
+    margin-right:0.35rem;
+    margin-bottom:0.35rem;
+    font-size:0.8rem;
+    font-weight:650;
+    background:rgba(248,250,252,0.96);
+}
+
+.aura-question{
+    padding:1rem 1.1rem;
+    border:1px solid rgba(0,0,0,0.07);
+    border-radius:14px;
+    background:rgba(248,250,252,0.95);
+    margin-bottom:0.8rem;
+}
+
+.aura-result{
+    padding:1.2rem 1.3rem;
+    border:1px solid rgba(0,0,0,0.08);
+    border-radius:16px;
+    background:rgba(255,255,255,0.96);
+}
+
+div[data-testid="stButton"] > button{
+    border-radius:10px;
+    font-weight:650;
+}
+
+</style>
+""",
+        unsafe_allow_html=True
+    )
+
+
+# =========================================================
+# QUIZ PARSER
+# =========================================================
 
 def parse_quiz(text):
 
-    questions = []
+    if not text:
+        return []
 
-    blocks = text.split("QUESTION ")
+    text=text.replace("\r\n","\n")
 
-    for block in blocks:
+    pattern=re.compile(
+        r"QUESTION\s*(\d+)\s*:\s*(.*?)"
+        r"OPTIONS\s*:\s*"
+        r"A\.\s*(.*?)\n"
+        r"B\.\s*(.*?)\n"
+        r"C\.\s*(.*?)\n"
+        r"D\.\s*(.*?)\n"
+        r"ANSWER\s*:\s*(.*?)\n"
+        r"EXPLANATION\s*:\s*(.*?)(?=\nQUESTION\s*\d+\s*:|\Z)",
+        re.IGNORECASE | re.DOTALL
+    )
 
-        if not block.strip():
-            continue
+    questions=[]
 
-        lines = block.strip().splitlines()
+    matches=pattern.findall(text)
 
-        question_text = ""
-        options = []
-        answer = ""
-        explanation = ""
+    for match in matches:
 
-        section = ""
+        number=match[0].strip()
+        question=match[1].strip()
 
-        for line in lines:
+        options=[
+            "A. "+match[2].strip(),
+            "B. "+match[3].strip(),
+            "C. "+match[4].strip(),
+            "D. "+match[5].strip()
+        ]
 
-            line = line.strip()
+        answer=match[6].strip()
+        explanation=match[7].strip()
 
-            if not line:
-                continue
+        answer_match=re.search(
+            r"\b([ABCD])\b",
+            answer.upper()
+        )
 
-            if ":" in line:
+        correct_letter=(
+            answer_match.group(1)
+            if answer_match
+            else ""
+        )
 
-                if line.startswith("1:") or line.startswith("2:") or \
-                   line.startswith("3:") or line.startswith("4:") or \
-                   line.startswith("5:"):
-
-                    question_text = line.split(":", 1)[1].strip()
-                    section = "question"
-
-                elif line == "OPTIONS:":
-                    section = "options"
-
-                elif line == "ANSWER:":
-                    section = "answer"
-
-                elif line == "EXPLANATION:":
-                    section = "explanation"
-
-                else:
-
-                    if section == "question":
-                        question_text = line
-
-            elif line.startswith(("A.", "B.", "C.", "D.")):
-
-                options.append(line)
-
-            elif section == "answer":
-
-                answer = line
-
-            elif section == "explanation":
-
-                explanation += line + " "
-
-            elif not question_text:
-
-                question_text = line
-
-        if question_text and len(options) == 4:
-
-            questions.append({
-                "question": question_text,
-                "options": options,
-                "answer": answer,
-                "explanation": explanation.strip()
-            })
+        questions.append(
+            {
+                "number":number,
+                "question":question,
+                "options":options,
+                "answer":correct_letter,
+                "explanation":explanation
+            }
+        )
 
     return questions
 
 
+# =========================================================
+# MAIN PAGE
+# =========================================================
+
 def quiz_page():
 
-    st.title("AURA Learn - Quiz & Assessment")
+    _inject_quiz_styles()
 
-    st.write(
-        "Test your understanding with an accessible "
-        "AI-generated quiz."
+    profile=learner_memory.get_profile()
+
+    # -----------------------------------------------------
+    # HERO
+    # -----------------------------------------------------
+
+    st.markdown(
+        """<div class="aura-quiz-hero">
+<div class="aura-quiz-eyebrow">Adaptive Assessment</div>
+<div class="aura-quiz-title">Quiz & Assessment</div>
+<div class="aura-quiz-subtitle">
+Generate personalized AI-based assessments, test understanding,
+and review learning performance in an accessible format.
+</div>
+</div>""",
+        unsafe_allow_html=True
     )
 
-    learner_type = st.selectbox(
-        "Learner Type",
-        [
-            "Visually Impaired",
-            "Dyslexic"
-        ]
+    # -----------------------------------------------------
+    # PROFILE CHECK
+    # -----------------------------------------------------
+
+    if profile is None:
+
+        st.warning(
+            "Please create and save your Student Profile before starting a quiz."
+        )
+
+        return
+
+    accessibility_context=accessibility_adapter.get_context(
+        profile
     )
 
-    preferred_mode = st.selectbox(
-        "Preferred Learning Mode",
-        [
-            "Text",
-            "Audio"
-        ]
+    # -----------------------------------------------------
+    # LEARNER CONTEXT
+    # -----------------------------------------------------
+
+    st.markdown(
+        """<div class="aura-card">
+<div class="aura-card-title">Assessment Context</div>
+<div class="aura-card-subtitle">
+AURA automatically applies the learner's accessibility and learning preferences.
+</div>
+</div>""",
+        unsafe_allow_html=True
     )
 
-    topic = st.text_input(
-        "Enter the topic for the quiz",
+    st.markdown(
+        f"""<span class="aura-badge">{profile.learner_type}</span>
+<span class="aura-badge">{profile.preferred_mode}</span>""",
+        unsafe_allow_html=True
+    )
+
+    st.write("")
+
+    # -----------------------------------------------------
+    # TOPIC
+    # -----------------------------------------------------
+
+    topic=st.text_input(
+        "Quiz Topic",
+        value=profile.current_topic or "",
         placeholder="Example: Photosynthesis"
     )
 
-    if st.button("Generate Quiz"):
+    # -----------------------------------------------------
+    # GENERATE
+    # -----------------------------------------------------
+
+    if st.button(
+        "Generate Personalized Quiz",
+        type="primary",
+        use_container_width=True
+    ):
 
         if not topic.strip():
 
-            st.warning("Please enter a topic.")
+            st.warning(
+                "Please enter a topic first."
+            )
 
         else:
 
-            profile = {
-                "learner_type": learner_type.lower(),
-                "preferred_mode": preferred_mode.lower()
-            }
-
-            accessibility = {
-                "mode": learner_type.lower(),
-                "short_sentences": True,
-                "simplified_language": True
-            }
+            learner_memory.update_current_topic(
+                topic.strip()
+            )
 
             with st.spinner(
-                "Generating your personalized quiz..."
+                "AURA Assessment Agent is creating your quiz..."
             ):
 
-                result = run_assessment_agent(
-                    topic=topic,
-                    learner_profile=profile,
-                    accessibility_context=accessibility
-                )
+                try:
 
-            if result.get("status") == "success":
+                    result=run_assessment_agent(
+                        topic=topic.strip(),
+                        learner_profile=profile,
+                        accessibility_context=accessibility_context
+                    )
 
-                quiz_text = result.get(
+                except Exception as e:
+
+                    result={
+                        "status":"error",
+                        "assessment":"Unable to generate assessment.",
+                        "error":str(e)
+                    }
+
+            # ---------------------------------------------
+            # SUCCESS
+            # ---------------------------------------------
+
+            if result.get("status")=="success":
+
+                quiz_text=result.get(
                     "assessment",
                     ""
                 )
 
-                questions = parse_quiz(quiz_text)
+                questions=parse_quiz(
+                    quiz_text
+                )
 
                 if questions:
 
-                    st.session_state["quiz_questions"] = questions
-                    st.session_state["quiz_submitted"] = False
+                    st.session_state[
+                        "quiz_questions"
+                    ]=questions
+
+                    st.session_state[
+                        "quiz_topic"
+                    ]=topic.strip()
+
+                    st.session_state[
+                        "quiz_submitted"
+                    ]=False
+
+                    st.session_state.pop(
+                        "quiz_score",
+                        None
+                    )
+
+                    st.success(
+                        f"{len(questions)} personalized questions generated successfully."
+                    )
 
                 else:
 
                     st.error(
-                        "The assessment could not be formatted "
-                        "into quiz questions."
+                        "The assessment was generated, but AURA could not format it into interactive quiz questions."
                     )
+
+                    with st.expander(
+                        "Generated assessment"
+                    ):
+
+                        st.text(
+                            quiz_text
+                        )
+
+            # ---------------------------------------------
+            # ERROR
+            # ---------------------------------------------
 
             else:
 
-                st.error(
-                    result.get(
-                        "assessment",
-                        "Unable to generate quiz."
-                    )
+                error_text=result.get(
+                    "error",
+                    ""
                 )
 
-    # --------------------------------------------------
+                if (
+                    "429" in error_text
+                    or
+                    "RESOURCE_EXHAUSTED" in error_text
+                ):
+
+                    st.warning(
+                        "The AI assessment service has temporarily reached its request limit."
+                    )
+
+                    st.info(
+                        "Please retry when the Gemini quota becomes available."
+                    )
+
+                else:
+
+                    st.error(
+                        result.get(
+                            "assessment",
+                            "Unable to generate quiz."
+                        )
+                    )
+
+                if error_text:
+
+                    with st.expander(
+                        "Technical details"
+                    ):
+
+                        st.code(
+                            error_text
+                        )
+
+
+    # =====================================================
     # DISPLAY QUIZ
-    # --------------------------------------------------
+    # =====================================================
 
-    if "quiz_questions" in st.session_state:
+    questions=st.session_state.get(
+        "quiz_questions"
+    )
 
-        questions = st.session_state["quiz_questions"]
+    if questions:
 
-        st.divider()
+        st.write("")
 
-        st.subheader(
-            f"📝 {topic} - Quiz"
+        quiz_topic=st.session_state.get(
+            "quiz_topic",
+            topic
         )
 
-        st.write(
-            f"{len(questions)} questions generated "
-            f"for a {learner_type.lower()} learner."
+        st.markdown(
+            f"""<div class="aura-card">
+<div class="aura-card-title">{quiz_topic} Assessment</div>
+<div class="aura-card-subtitle">
+Choose one answer for each question and submit when complete.
+</div>
+</div>""",
+            unsafe_allow_html=True
         )
 
-        answers = {}
+        answers={}
 
-        for i, q in enumerate(questions):
+        for i,q in enumerate(
+            questions
+        ):
 
             st.markdown(
-                f"### Question {i + 1}"
+                f"""<div class="aura-question">
+<strong>Question {i+1}</strong><br><br>
+{q["question"]}
+</div>""",
+                unsafe_allow_html=True
             )
 
-            st.write(
-                q["question"]
-            )
-
-            answers[i] = st.radio(
-                "Choose your answer:",
+            answers[i]=st.radio(
+                "Choose your answer",
                 q["options"],
-                key=f"question_{i}"
+                key=f"quiz_answer_{i}"
             )
 
-        if st.button("Submit Quiz"):
+        # -------------------------------------------------
+        # SUBMIT
+        # -------------------------------------------------
 
-            score = 0
+        if st.button(
+            "Submit Assessment",
+            type="primary",
+            use_container_width=True
+        ):
 
-            for i, q in enumerate(questions):
+            score=0
+            submitted_answers={}
 
-                selected = answers[i]
+            for i,q in enumerate(
+                questions
+            ):
 
-                correct = q["answer"].strip()
+                selected=answers[i]
 
-                if selected.startswith(correct):
+                selected_letter=selected[
+                    0
+                ].upper()
 
-                    score += 1
+                submitted_answers[
+                    i
+                ]=selected_letter
 
-            st.session_state["quiz_score"] = score
-            st.session_state["quiz_submitted"] = True
+                if (
+                    selected_letter
+                    ==
+                    q["answer"].upper()
+                ):
 
-    # --------------------------------------------------
+                    score+=1
+
+            st.session_state[
+                "quiz_score"
+            ]=score
+
+            st.session_state[
+                "quiz_answers"
+            ]=submitted_answers
+
+            st.session_state[
+                "quiz_submitted"
+            ]=True
+
+
+    # =====================================================
     # RESULTS
-    # --------------------------------------------------
+    # =====================================================
 
-    if st.session_state.get("quiz_submitted", False):
+    if st.session_state.get(
+        "quiz_submitted",
+        False
+    ):
 
-        questions = st.session_state["quiz_questions"]
-        score = st.session_state["quiz_score"]
+        questions=st.session_state[
+            "quiz_questions"
+        ]
 
-        st.divider()
+        score=st.session_state[
+            "quiz_score"
+        ]
 
-        st.subheader("📊 Quiz Result")
-
-        st.success(
-            f"Score: {score} / {len(questions)}"
+        submitted_answers=st.session_state.get(
+            "quiz_answers",
+            {}
         )
 
-        percentage = (
-            score / len(questions)
-        ) * 100
+        total=len(
+            questions
+        )
+
+        percentage=round(
+            (
+                score/total
+            )*100,
+            1
+        )
+
+        st.write("")
+
+        st.markdown(
+            """<div class="aura-card">
+<div class="aura-card-title">Assessment Result</div>
+<div class="aura-card-subtitle">
+Review your performance and understand where additional practice may help.
+</div>
+</div>""",
+            unsafe_allow_html=True
+        )
+
+        col1,col2,col3=st.columns(
+            3
+        )
+
+        with col1:
+
+            st.metric(
+                "Score",
+                f"{score}/{total}"
+            )
+
+        with col2:
+
+            st.metric(
+                "Percentage",
+                f"{percentage}%"
+            )
+
+        with col3:
+
+            if percentage>=80:
+                level="Strong"
+
+            elif percentage>=60:
+                level="Developing"
+
+            else:
+                level="Needs Practice"
+
+            st.metric(
+                "Understanding",
+                level
+            )
 
         st.progress(
-            int(percentage)
+            int(
+                percentage
+            )
         )
 
-        if percentage >= 80:
+        if percentage>=80:
 
-            st.write(
-                "Excellent performance! "
-                "You have a good understanding of this topic."
+            st.success(
+                "Excellent performance. You demonstrate strong understanding of this topic."
             )
 
-        elif percentage >= 60:
+        elif percentage>=60:
 
-            st.write(
-                "Good performance. "
-                "A little more practice may help."
+            st.info(
+                "Good progress. Review the missed concepts and practice once more."
             )
 
         else:
 
-            st.write(
-                "More practice is recommended "
-                "for this topic."
+            st.warning(
+                "Additional practice is recommended. AURA can help reinforce the concepts you missed."
             )
 
-        st.subheader("Answer Review")
+        # -------------------------------------------------
+        # ANSWER REVIEW
+        # -------------------------------------------------
 
-        for i, q in enumerate(questions):
+        st.write("")
 
-            st.markdown(
-                f"**Question {i + 1}:** "
-                f"{q['question']}"
+        st.markdown(
+            "### Answer Review"
+        )
+
+        for i,q in enumerate(
+            questions
+        ):
+
+            selected=submitted_answers.get(
+                i,
+                ""
             )
 
-            st.write(
-                f"Correct Answer: {q['answer']}"
-            )
+            correct=q[
+                "answer"
+            ]
 
-            if q["explanation"]:
+            with st.expander(
+                f"Question {i+1} • {'Correct' if selected==correct else 'Review'}"
+            ):
 
-                st.caption(
-                    q["explanation"]
+                st.markdown(
+                    f"**{q['question']}**"
                 )
+
+                st.write(
+                    "Your answer:",
+                    selected or "Not answered"
+                )
+
+                st.write(
+                    "Correct answer:",
+                    correct
+                )
+
+                if q.get(
+                    "explanation"
+                ):
+
+                    st.info(
+                        q[
+                            "explanation"
+                        ]
+                    )

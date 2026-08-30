@@ -5,11 +5,14 @@ from PIL import Image
 import pytesseract
 
 
-# Tesseract installation path
-TESSERACT_PATH = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
+# --------------------------------------------------
+# TESSERACT CONFIGURATION
+# --------------------------------------------------
+
+TESSERACT_PATH=r"C:\Program Files\Tesseract-OCR\tesseract.exe"
 
 if os.path.exists(TESSERACT_PATH):
-    pytesseract.pytesseract.tesseract_cmd = TESSERACT_PATH
+    pytesseract.pytesseract.tesseract_cmd=TESSERACT_PATH
 
 
 # --------------------------------------------------
@@ -22,8 +25,7 @@ def extract_text_from_image(image):
     """
 
     try:
-        text = pytesseract.image_to_string(image)
-
+        text=pytesseract.image_to_string(image)
         return text.strip()
 
     except Exception as e:
@@ -38,65 +40,105 @@ def extract_text(file):
     """
     Extract text from an uploaded image or PDF.
 
-    Supported:
+    Supported formats:
     PNG, JPG, JPEG, PDF
     """
 
     try:
+        file_name=file.name.lower()
 
-        file_name = file.name.lower()
+        # ------------------------------------------
+        # IMAGE FILE
+        # ------------------------------------------
 
-        # Image file
-        if file_name.endswith((".png", ".jpg", ".jpeg")):
+        if file_name.endswith((".png",".jpg",".jpeg")):
 
-            image = Image.open(file)
+            image=Image.open(file)
 
-            return extract_text_from_image(image)
+            return extract_text_from_image(
+                image
+            )
 
-        # PDF file
+        # ------------------------------------------
+        # PDF FILE
+        # ------------------------------------------
+
         elif file_name.endswith(".pdf"):
 
             import fitz
 
-            pdf_bytes = file.read()
+            pdf_bytes=file.read()
 
-            document = fitz.open(
+            document=fitz.open(
                 stream=pdf_bytes,
                 filetype="pdf"
             )
 
-            all_text = []
+            all_text=[]
 
             for page in document:
 
-                # Try normal PDF text extraction first
-                text = page.get_text().strip()
+                # First try normal PDF text extraction
+                text=page.get_text().strip()
 
                 if text:
-                    all_text.append(text)
+
+                    all_text.append(
+                        text
+                    )
 
                 else:
-                    # Scanned PDF → OCR
-                    pix = page.get_pixmap(
-                        matrix=fitz.Matrix(2, 2)
+
+                    # Scanned PDF -> OCR
+                    pix=page.get_pixmap(
+                        matrix=fitz.Matrix(
+                            2,
+                            2
+                        )
                     )
 
-                    image_bytes = pix.tobytes("png")
-
-                    image = Image.open(
-                        io.BytesIO(image_bytes)
+                    image_bytes=pix.tobytes(
+                        "png"
                     )
 
-                    ocr_text = extract_text_from_image(
+                    image=Image.open(
+                        io.BytesIO(
+                            image_bytes
+                        )
+                    )
+
+                    ocr_text=extract_text_from_image(
                         image
                     )
 
-                    if ocr_text:
-                        all_text.append(ocr_text)
+                    if (
+                        ocr_text
+                        and
+                        not ocr_text.startswith(
+                            "OCR Error:"
+                        )
+                    ):
+
+                        all_text.append(
+                            ocr_text
+                        )
 
             document.close()
 
-            return "\n\n".join(all_text).strip()
+            if not all_text:
+
+                return (
+                    "OCR Error: No readable text "
+                    "could be extracted from the PDF."
+                )
+
+            return "\n\n".join(
+                all_text
+            ).strip()
+
+        # ------------------------------------------
+        # UNSUPPORTED FORMAT
+        # ------------------------------------------
 
         else:
 
@@ -122,13 +164,27 @@ def clean_ocr_text(text):
     if not text:
         return ""
 
-    lines = []
+    # Preserve error messages
+    if (
+        text.startswith("OCR Error:")
+        or
+        text.startswith("Error processing file:")
+        or
+        text.startswith("Unsupported file format")
+    ):
+        return text
+
+    lines=[]
 
     for line in text.splitlines():
 
-        line = line.strip()
+        line=line.strip()
 
         if line:
-            lines.append(line)
+            lines.append(
+                line
+            )
 
-    return "\n".join(lines)
+    return "\n".join(
+        lines
+    )
