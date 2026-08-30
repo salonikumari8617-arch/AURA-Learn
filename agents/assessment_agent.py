@@ -10,33 +10,40 @@ def run_assessment_agent(
     accessibility_context=None,
     user_request=""
 ):
-    learner_profile = learner_profile or {}
-    accessibility_context = accessibility_context or {}
 
-    # If called directly from a student's request
     if user_request:
-        topic = user_request
+        topic=user_request
 
-    learner_type = learner_profile.get(
-        "learner_type",
-        learner_profile.get("disability", "general")
-    )
+    learner_type="general"
+    preferred_mode="text"
 
-    preferred_mode = learner_profile.get(
-        "preferred_mode",
-        "text"
-    )
+    if learner_profile is not None:
+        learner_type=getattr(
+            learner_profile,
+            "learner_type",
+            "general"
+        )
 
-    prompt = f"""
+        preferred_mode=getattr(
+            learner_profile,
+            "preferred_mode",
+            "text"
+        )
+
+    if accessibility_context is None:
+        accessibility_context={}
+
+    prompt=f"""
 You are the Assessment Agent of AURA Learn.
 
-AURA Learn is an AI-based personalized learning
-assistant for visually impaired and dyslexic students.
+AURA Learn is an Agentic AI-based Personalized
+Learning Assistant for visually impaired and
+dyslexic students.
 
-Your task is to create an accessible and adaptive
-assessment for the learner.
+Your task is to generate an accessible and
+personalized assessment for the learner.
 
-Topic:
+Learner request:
 {topic}
 
 Target concept:
@@ -54,26 +61,39 @@ Content style:
 Next action:
 {next_action}
 
-Accessibility requirements:
+Accessibility context:
 {accessibility_context}
 
-Instructions:
 
-1. Generate 5 questions related to the topic.
-2. Focus on the target concept when one is provided.
-3. Start with easy questions and gradually increase
-   the difficulty.
-4. Use clear and simple language.
-5. Avoid unnecessary technical terminology.
-6. For dyslexic learners, keep questions short and
-   easy to read.
-7. For visually impaired learners, do not depend on
-   images, diagrams, colours, or visual references.
-8. Provide multiple-choice questions.
-9. Include the correct answer for each question.
-10. Provide a short explanation for each answer.
+INSTRUCTIONS:
 
-Return the assessment in this format:
+1. Generate 5 multiple-choice questions.
+2. Keep questions clear and concise.
+3. Use simple language.
+4. Provide 4 options for each question.
+5. Include the correct answer.
+6. Include a short explanation after each answer.
+
+If learner type is Dyslexic:
+- Use short questions.
+- Avoid complex wording.
+- Keep options brief and clearly separated.
+- Avoid dense blocks of text.
+
+If learner type is Visually Impaired:
+- Do not depend on images, diagrams, colours,
+  or visual positioning.
+- Make every question understandable through text alone.
+- Make the assessment suitable for text-to-speech.
+
+If preferred learning mode is Audio First:
+- Use natural spoken language.
+- Avoid complicated formatting.
+
+If preferred learning mode is Text + Audio:
+- Keep the assessment readable and suitable for TTS.
+
+Return exactly in this structure:
 
 QUESTION 1:
 <question>
@@ -90,30 +110,31 @@ ANSWER:
 EXPLANATION:
 <short explanation>
 
-
-QUESTION 2:
-...
-
-Continue until QUESTION 5.
+Repeat the same structure for QUESTION 2 to QUESTION 5.
 """
 
     try:
-        response = llm_client.generate(prompt)
+
+        response=llm_client.generate(prompt)
 
         return {
-            "status": "success",
-            "agent": "assessment_agent",
-            "topic": topic,
-            "target_concept": target_concept,
-            "assessment": response,
-            "learner_type": learner_type
+            "status":"success",
+            "agent":"assessment_agent",
+            "topic":topic,
+            "target_concept":target_concept,
+            "assessment":response,
+            "learner_type":learner_type,
+            "preferred_mode":preferred_mode
         }
 
     except Exception as e:
+
         return {
-            "status": "error",
-            "agent": "assessment_agent",
-            "topic": topic,
-            "assessment": "Unable to generate assessment at the moment.",
-            "error": str(e)
+            "status":"error",
+            "agent":"assessment_agent",
+            "topic":topic,
+            "assessment":"Unable to generate assessment.",
+            "learner_type":learner_type,
+            "preferred_mode":preferred_mode,
+            "error":str(e)
         }

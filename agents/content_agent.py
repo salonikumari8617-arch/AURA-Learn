@@ -11,32 +11,40 @@ def run_content_agent(
     user_request=""
 ):
 
-    learner_profile = learner_profile or {}
-    accessibility_context = accessibility_context or {}
-
-    # Used when the agent is called directly from a user request
     if user_request:
-        topic = user_request
+        topic=user_request
 
-    learner_type = learner_profile.get(
-        "learner_type",
-        learner_profile.get("disability", "general")
-    )
+    learner_type="general"
+    preferred_mode="text"
 
-    preferred_mode = learner_profile.get(
-        "preferred_mode",
-        "text"
-    )
+    if learner_profile is not None:
+        learner_type=getattr(
+            learner_profile,
+            "learner_type",
+            "general"
+        )
 
-    prompt = f"""
+        preferred_mode=getattr(
+            learner_profile,
+            "preferred_mode",
+            "text"
+        )
+
+    if accessibility_context is None:
+        accessibility_context={}
+
+    prompt=f"""
 You are the Content Agent of AURA Learn.
 
-AURA Learn is an AI-based personalized learning
-assistant for visually impaired and dyslexic students.
+AURA Learn is an Agentic AI-based Personalized
+Learning Assistant for visually impaired and
+dyslexic students.
 
-Your task is to create accessible educational content.
+Your task is to generate or simplify educational
+content according to the learner's accessibility
+and learning requirements.
 
-Topic:
+Learner request:
 {topic}
 
 Target concept:
@@ -54,36 +62,51 @@ Content style:
 Next action:
 {next_action}
 
-Accessibility requirements:
+Accessibility context:
 {accessibility_context}
 
-Instructions:
 
-1. Explain the topic clearly and accurately.
-2. Use short and simple sentences.
-3. Break complex information into small sections.
-4. Avoid unnecessary technical jargon.
-5. For dyslexic learners, use simple wording and
-   well-structured content.
-6. For visually impaired learners, do not depend
-   on images, colours, diagrams, or visual references.
-7. Describe important visual information using words.
-8. Make the content suitable for Text-to-Speech.
-9. Include important key points.
-10. Give a simple example when appropriate.
+INSTRUCTIONS:
 
-Return the following:
+1. Generate clear educational content for the requested topic.
+2. Use simple and accurate language.
+3. Organize information into small understandable sections.
+4. Avoid unnecessary technical terminology.
+5. Include key points and a short recap.
+
+If learner type is Dyslexic:
+- Use short sentences.
+- Use short paragraphs.
+- Break content into small chunks.
+- Use clear headings and structured points.
+- Avoid dense blocks of text.
+
+If learner type is Visually Impaired:
+- Do not depend on diagrams, colours, or images.
+- Explain visual information completely using words.
+- Make the content suitable for screen readers and text-to-speech.
+- Use clear sequential explanations.
+
+If preferred learning mode is Audio First:
+- Write naturally for spoken explanation.
+- Avoid complicated visual formatting.
+
+If preferred learning mode is Text + Audio:
+- Keep the content structured and suitable for both reading and TTS.
+
+If preferred learning mode is Simple Text:
+- Keep the response concise and easy to read.
+
+Return the answer in exactly this structure:
 
 TITLE:
-<topic title>
+<title>
 
 EXPLANATION:
 <clear explanation>
 
 KEY POINTS:
-- point 1
-- point 2
-- point 3
+<important points>
 
 EXAMPLE:
 <simple example>
@@ -94,22 +117,25 @@ QUICK RECAP:
 
     try:
 
-        response = llm_client.generate(prompt)
+        response=llm_client.generate(prompt)
 
         return {
-            "status": "success",
-            "agent": "content_agent",
-            "topic": topic,
-            "content": response,
-            "learner_type": learner_type
+            "status":"success",
+            "agent":"content_agent",
+            "topic":topic,
+            "content":response,
+            "learner_type":learner_type,
+            "preferred_mode":preferred_mode
         }
 
     except Exception as e:
 
         return {
-            "status": "error",
-            "agent": "content_agent",
-            "topic": topic,
-            "content": "Unable to generate content at the moment.",
-            "error": str(e)
+            "status":"error",
+            "agent":"content_agent",
+            "topic":topic,
+            "content":"Unable to generate learning content.",
+            "learner_type":learner_type,
+            "preferred_mode":preferred_mode,
+            "error":str(e)
         }
