@@ -1,3 +1,4 @@
+
 import streamlit as st
 from streamlit_mic_recorder import mic_recorder
 
@@ -6,385 +7,324 @@ from agents.orchestrator import orchestrator
 from memory.learner_profile import learner_memory
 
 
-def _inject_profile_styles():
-    st.markdown(
-        """
-        <style>
-        .aura-hero {
-            padding: 1.4rem 1.6rem;
-            border: 1px solid rgba(0,0,0,0.08);
-            border-radius: 18px;
-            background: rgba(255,255,255,0.85);
-            margin-bottom: 1.2rem;
-        }
-
-        .aura-eyebrow {
-            font-size: 0.85rem;
-            font-weight: 700;
-            letter-spacing: 0.08em;
-            text-transform: uppercase;
-            opacity: 0.65;
-            margin-bottom: 0.35rem;
-        }
-
-        .aura-title {
-            font-size: 2.15rem;
-            font-weight: 800;
-            margin: 0;
-            line-height: 1.15;
-        }
-
-        .aura-subtitle {
-            margin-top: 0.55rem;
-            font-size: 1rem;
-            opacity: 0.72;
-            line-height: 1.5;
-        }
-
-        .aura-card {
-            padding: 1.3rem;
-            border: 1px solid rgba(0,0,0,0.08);
-            border-radius: 16px;
-            background: rgba(255,255,255,0.92);
-            margin-bottom: 1rem;
-        }
-
-        .aura-card-title {
-            font-size: 1.15rem;
-            font-weight: 750;
-            margin-bottom: 0.25rem;
-        }
-
-        .aura-card-subtitle {
-            font-size: 0.92rem;
-            opacity: 0.68;
-            margin-bottom: 1rem;
-        }
-
-        .aura-badge {
-            display: inline-block;
-            padding: 0.3rem 0.65rem;
-            border-radius: 999px;
-            border: 1px solid rgba(0,0,0,0.10);
-            font-size: 0.8rem;
-            font-weight: 650;
-            margin-right: 0.35rem;
-            margin-bottom: 0.35rem;
-        }
-
-        .aura-response {
-            padding: 1.2rem 1.3rem;
-            border-radius: 14px;
-            border: 1px solid rgba(0,0,0,0.08);
-            background: rgba(248,250,252,0.95);
-            line-height: 1.65;
-        }
-
-        .aura-agent {
-            font-size: 0.82rem;
-            font-weight: 700;
-            opacity: 0.68;
-            margin-bottom: 0.5rem;
-        }
-
-        div[data-testid="stButton"] > button {
-            border-radius: 10px;
-            font-weight: 650;
-        }
-        </style>
-        """,
-        unsafe_allow_html=True
-    )
-
-
 def _format_agent_name(agent_name):
-    mapping={
-        "tutor_agent":"AURA Tutor",
-        "content_agent":"Content Agent",
-        "assessment_agent":"Assessment Agent"
+    mapping = {
+        "tutor_agent": "AURA Tutor",
+        "content_agent": "Content Agent",
+        "assessment_agent": "Assessment Agent"
     }
-    return mapping.get(agent_name,agent_name.replace("_"," ").title())
+    return mapping.get(
+        agent_name,
+        str(agent_name).replace("_", " ").title()
+    )
 
 
 def _extract_main_response(agent_result):
-    if not isinstance(agent_result,dict):
+    if not isinstance(agent_result, dict):
         return str(agent_result)
 
-    for key in ["response","content","assessment","message"]:
-        value=agent_result.get(key)
+    for key in ["response", "content", "assessment", "message"]:
+        value = agent_result.get(key)
         if value:
-            return value
+            return str(value)
 
-    return str(agent_result)
+    return "No response was returned by the selected agent."
 
 
 def show_profile():
-    _inject_profile_styles()
+    # --------------------------------------------------
+    # PAGE INTRODUCTION
+    # --------------------------------------------------
 
-    st.markdown(
-        """
-        <div class="aura-hero">
-            <div class="aura-eyebrow">Accessible AI Learning</div>
-            <div class="aura-title">Student Profile</div>
-            <div class="aura-subtitle">
-                Personalize AURA Learn according to the learner's accessibility
-                needs and preferred learning style.
-            </div>
-        </div>
-        """,
-        unsafe_allow_html=True
+    st.title("Student Profile")
+
+    st.write(
+        "Personalize AURA Learn using your accessibility "
+        "requirements and preferred learning mode."
     )
 
-    current_profile=learner_memory.get_profile()
+    st.caption(
+        "Complete and save your profile before using "
+        "personalized learning features."
+    )
 
-    col1,col2=st.columns([1.15,0.85])
+    current_profile = learner_memory.get_profile()
 
-    with col1:
-        st.markdown(
-            """
-            <div class="aura-card">
-                <div class="aura-card-title">Learner Preferences</div>
-                <div class="aura-card-subtitle">
-                    These settings are used by the AI agents to personalize responses.
-                </div>
-            </div>
-            """,
-            unsafe_allow_html=True
+    # --------------------------------------------------
+    # LEARNER PREFERENCES
+    # --------------------------------------------------
+
+    st.header("Learner Preferences")
+
+    st.write(
+        "These preferences help AURA Learn adapt its "
+        "educational explanations and learning activities."
+    )
+
+    default_name = (
+        current_profile.name if current_profile else ""
+    )
+
+    name = st.text_input(
+        "Student name",
+        value=default_name,
+        placeholder="Enter your name",
+        help="Enter the name you want AURA Learn to use."
+    )
+
+    learner_options = [
+        "Dyslexic",
+        "Visually Impaired"
+    ]
+
+    learner_index = 0
+
+    if (
+        current_profile
+        and current_profile.learner_type in learner_options
+    ):
+        learner_index = learner_options.index(
+            current_profile.learner_type
         )
 
-        default_name=current_profile.name if current_profile else ""
+    learner_type = st.selectbox(
+        "Learner type",
+        learner_options,
+        index=learner_index,
+        help="Choose the accessibility profile that best "
+             "matches your learning needs."
+    )
 
-        name=st.text_input(
-            "Student Name",
-            value=default_name,
-            placeholder="Enter learner name"
+    mode_options = [
+        "Text + Audio",
+        "Audio First",
+        "Simple Text"
+    ]
+
+    mode_index = 0
+
+    if (
+        current_profile
+        and current_profile.preferred_mode in mode_options
+    ):
+        mode_index = mode_options.index(
+            current_profile.preferred_mode
         )
 
-        learner_options=[
-            "Dyslexic",
-            "Visually Impaired"
-        ]
-
-        learner_index=0
-        if current_profile and current_profile.learner_type in learner_options:
-            learner_index=learner_options.index(current_profile.learner_type)
-
-        learner_type=st.selectbox(
-            "Learner Type",
-            learner_options,
-            index=learner_index
+    preferred_mode = st.selectbox(
+        "Preferred learning mode",
+        mode_options,
+        index=mode_index,
+        help=(
+            "Text + Audio provides written content and audio. "
+            "Audio First prioritizes spoken explanations. "
+            "Simple Text prioritizes concise written explanations."
         )
+    )
 
-        mode_options=[
-            "Text + Audio",
-            "Audio First",
-            "Simple Text"
-        ]
-
-        mode_index=0
-        if current_profile and current_profile.preferred_mode in mode_options:
-            mode_index=mode_options.index(current_profile.preferred_mode)
-
-        preferred_mode=st.selectbox(
-            "Preferred Learning Mode",
-            mode_options,
-            index=mode_index
-        )
-
-        if st.button(
-            "Save Profile",
-            use_container_width=True
-        ):
-            if not name.strip():
-                st.warning("Please enter the learner's name.")
-            else:
-                learner_memory.create_profile(
-                    student_id=name.lower().strip().replace(" ","_"),
-                    name=name.strip(),
-                    learner_type=learner_type,
-                    preferred_mode=preferred_mode
-                )
-
-                st.success(
-                    "Profile saved. AURA Learn will now personalize learning responses."
-                )
-
-    with col2:
-        st.markdown(
-            """
-            <div class="aura-card">
-                <div class="aura-card-title">Accessibility Profile</div>
-                <div class="aura-card-subtitle">
-                    Current personalization context used by AURA's agents.
-                </div>
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
-
-        profile=learner_memory.get_profile()
-
-        if profile:
-            st.markdown(
-                f"""
-                <span class="aura-badge">{profile.learner_type}</span>
-                <span class="aura-badge">{profile.preferred_mode}</span>
-                """,
-                unsafe_allow_html=True
+    if st.button(
+        "Save profile",
+        key="save_profile",
+        type="primary",
+        use_container_width=True
+    ):
+        if not name.strip():
+            st.warning(
+                "Profile not saved. Please enter the student name."
             )
-
-            st.write("")
-            st.markdown(f"**Learner:** {profile.name}")
-
-            if profile.current_topic:
-                st.markdown(f"**Current Topic:** {profile.current_topic}")
-
-            if profile.weak_concepts:
-                st.markdown(
-                    "**Needs Reinforcement:** "
-                    + ", ".join(profile.weak_concepts)
-                )
-
-            if profile.strong_concepts:
-                st.markdown(
-                    "**Strong Concepts:** "
-                    + ", ".join(profile.strong_concepts)
-                )
         else:
-            st.info(
-                "Save the learner profile to activate personalized accessibility settings."
+            learner_memory.create_profile(
+                student_id=(
+                    name.lower().strip().replace(" ", "_")
+                ),
+                name=name.strip(),
+                learner_type=learner_type,
+                preferred_mode=preferred_mode
             )
 
-    st.write("")
-    st.markdown(
-        """
-        <div class="aura-card">
-            <div class="aura-card-title">Voice Learning Assistant</div>
-            <div class="aura-card-subtitle">
-                Ask AURA a question using your voice. The request will be converted
-                to text and routed automatically to the correct AI agent.
-            </div>
-        </div>
-        """,
-        unsafe_allow_html=True
+            st.success(
+                "Profile saved successfully. "
+                "AURA Learn can now personalize learning responses."
+            )
+
+    # Refresh profile data after a possible save.
+    profile = learner_memory.get_profile()
+
+    # --------------------------------------------------
+    # CURRENT ACCESSIBILITY PROFILE
+    # --------------------------------------------------
+
+    st.divider()
+    st.header("Current Accessibility Profile")
+
+    if profile:
+        st.write(f"**Student name:** {profile.name}")
+        st.write(f"**Learner type:** {profile.learner_type}")
+        st.write(
+            f"**Preferred learning mode:** {profile.preferred_mode}"
+        )
+
+        if profile.current_topic:
+            st.write(
+                f"**Current topic:** {profile.current_topic}"
+            )
+
+        if profile.weak_concepts:
+            st.subheader("Concepts to reinforce")
+            st.write(", ".join(profile.weak_concepts))
+
+        if profile.strong_concepts:
+            st.subheader("Strong concepts")
+            st.write(", ".join(profile.strong_concepts))
+
+    else:
+        st.info(
+            "No learner profile has been saved yet. "
+            "Enter your preferences above and select Save profile."
+        )
+
+    # --------------------------------------------------
+    # VOICE LEARNING ASSISTANT
+    # --------------------------------------------------
+
+    st.divider()
+    st.header("Voice Learning Assistant")
+
+    st.write(
+        "Record a question. AURA Learn will convert your speech "
+        "to text and route the request to a suitable AI agent."
     )
 
-    audio=mic_recorder(
-        start_prompt="Start Recording",
-        stop_prompt="Stop Recording",
+    st.caption(
+        "Use the recording controls below to start and stop "
+        "your recording. You can review the result after processing."
+    )
+
+    audio = mic_recorder(
+        start_prompt="Start recording",
+        stop_prompt="Stop recording",
         key="profile_mic"
     )
 
     if audio:
-        with st.spinner("Processing voice input..."):
-            result=speech_to_text.transcribe_audio(
-                audio["bytes"]
-            )
+        audio_bytes = audio.get("bytes")
 
-        if result["success"]:
-            user_text=result["text"]
+        if not audio_bytes:
+            st.error(
+                "No audio was received. Please record your question again."
+            )
+            return
+
+        with st.spinner("Processing your voice recording..."):
+            result = speech_to_text.transcribe_audio(audio_bytes)
+
+        if result.get("success"):
+            user_text = result.get("text", "").strip()
+
+            if not user_text:
+                st.warning(
+                    "No speech was recognized. Please try recording again."
+                )
+                return
 
             st.success("Speech recognized successfully.")
 
-            st.markdown("**You said**")
-            st.info(user_text)
+            st.subheader("Recognized question")
+            st.write(user_text)
 
-            with st.spinner("AURA is selecting the best agent..."):
-                routing_result=orchestrator.route_user_request(
-                    user_text
-                )
+            with st.spinner(
+                "AURA Learn is selecting an appropriate AI agent..."
+            ):
+                try:
+                    routing_result = orchestrator.route_user_request(
+                        user_text
+                    )
+                except Exception:
+                    st.error(
+                        "AURA Learn could not process your request. "
+                        "Please try again."
+                    )
+                    return
 
-            selected_agent=routing_result.get(
+            selected_agent = routing_result.get(
                 "agent",
                 "unknown_agent"
             )
 
-            st.markdown(
-                f"""
-                <span class="aura-badge">
-                    {_format_agent_name(selected_agent)}
-                </span>
-                """,
-                unsafe_allow_html=True
-            )
+            st.subheader("Selected learning agent")
+            st.write(_format_agent_name(selected_agent))
 
-            if routing_result["status"]=="agent_not_registered":
+            if routing_result.get("status") == "agent_not_registered":
                 st.info(
-                    routing_result["message"]
-                )
-            else:
-                agent_result=routing_result.get(
-                    "result",
-                    {}
+                    routing_result.get(
+                        "message",
+                        "The selected agent is not available yet."
+                    )
                 )
 
-                if isinstance(agent_result,dict) and agent_result.get("status")=="error":
-                    st.error(
-                        agent_result.get(
-                            "response",
-                            agent_result.get(
-                                "content",
-                                agent_result.get(
-                                    "assessment",
-                                    "Unable to generate a response."
-                                )
-                            )
-                        )
+            elif routing_result.get("status") != "executed":
+                st.error(
+                    "The request could not be processed. "
+                    "Please try again."
+                )
+
+            else:
+                agent_result = routing_result.get("result", {})
+
+                if (
+                    isinstance(agent_result, dict)
+                    and agent_result.get("status") == "error"
+                ):
+                    error_message = (
+                        agent_result.get("response")
+                        or agent_result.get("content")
+                        or agent_result.get("assessment")
+                        or "The selected agent could not generate a response."
                     )
+
+                    st.error(str(error_message))
 
                     if agent_result.get("error"):
                         with st.expander("Technical details"):
-                            st.code(agent_result["error"])
+                            st.code(str(agent_result["error"]))
 
                 else:
-                    response_text=_extract_main_response(
+                    response_text = _extract_main_response(
                         agent_result
                     )
 
-                    st.markdown("### AURA Response")
+                    st.divider()
+                    st.header("AURA response")
+                    st.markdown(response_text)
 
-                    st.markdown(
-                        f"""
-                        <div class="aura-response">
-                            {response_text.replace(chr(10),"<br>")}
-                        </div>
-                        """,
-                        unsafe_allow_html=True
-                    )
-
-                    if isinstance(agent_result,dict):
-                        learner_type_value=agent_result.get(
+                    if isinstance(agent_result, dict):
+                        learner_type_value = agent_result.get(
                             "learner_type"
                         )
-
-                        preferred_mode_value=agent_result.get(
+                        preferred_mode_value = agent_result.get(
                             "preferred_mode"
                         )
 
                         if learner_type_value or preferred_mode_value:
-                            st.write("")
+                            st.subheader("Response personalization")
 
                             if learner_type_value:
-                                st.markdown(
-                                    f"""
-                                    <span class="aura-badge">
-                                        {learner_type_value}
-                                    </span>
-                                    """,
-                                    unsafe_allow_html=True
+                                st.write(
+                                    "**Learner type:** "
+                                    f"{learner_type_value}"
                                 )
 
                             if preferred_mode_value:
-                                st.markdown(
-                                    f"""
-                                    <span class="aura-badge">
-                                        {preferred_mode_value}
-                                    </span>
-                                    """,
-                                    unsafe_allow_html=True
+                                st.write(
+                                    "**Learning mode:** "
+                                    f"{preferred_mode_value}"
                                 )
 
         else:
             st.error(
-                result["error"]
+                result.get(
+                    "error",
+                    "Speech recognition failed. "
+                    "Please try recording your question again."
+                )
             )

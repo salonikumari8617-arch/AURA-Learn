@@ -1,6 +1,7 @@
+
 import streamlit as st
 
-from accessibility.ocr import extract_text,clean_ocr_text
+from accessibility.ocr import extract_text, clean_ocr_text
 from accessibility.tts import text_to_speech
 from accessibility.accessibility_adapter import accessibility_adapter
 
@@ -8,485 +9,302 @@ from agents.content_agent import run_content_agent
 from memory.learner_profile import learner_memory
 
 
-def _inject_learning_styles():
-
-    st.markdown(
-        """
-<style>
-.aura-learning-hero{
-    padding:1.7rem 1.8rem;
-    border:1px solid rgba(0,0,0,0.08);
-    border-radius:18px;
-    background:rgba(255,255,255,0.95);
-    margin-bottom:1.2rem;
-}
-
-.aura-learning-eyebrow{
-    font-size:0.82rem;
-    font-weight:700;
-    letter-spacing:0.08em;
-    text-transform:uppercase;
-    opacity:0.62;
-    margin-bottom:0.45rem;
-}
-
-.aura-learning-title{
-    font-size:2.2rem;
-    font-weight:800;
-    margin:0;
-    line-height:1.15;
-}
-
-.aura-learning-subtitle{
-    margin-top:0.65rem;
-    opacity:0.70;
-    line-height:1.55;
-    font-size:1rem;
-}
-
-.aura-learning-card{
-    padding:1.25rem 1.35rem;
-    border:1px solid rgba(0,0,0,0.08);
-    border-radius:16px;
-    background:rgba(255,255,255,0.94);
-    margin-top:1rem;
-    margin-bottom:1rem;
-}
-
-.aura-learning-card-title{
-    font-size:1.12rem;
-    font-weight:750;
-    margin-bottom:0.25rem;
-}
-
-.aura-learning-card-subtitle{
-    font-size:0.91rem;
-    opacity:0.67;
-    line-height:1.45;
-}
-
-.aura-learning-badge{
-    display:inline-block;
-    padding:0.3rem 0.65rem;
-    border-radius:999px;
-    border:1px solid rgba(0,0,0,0.10);
-    margin-right:0.35rem;
-    margin-bottom:0.35rem;
-    font-size:0.8rem;
-    font-weight:650;
-    background:rgba(248,250,252,0.95);
-}
-
-.aura-step{
-    font-size:0.78rem;
-    font-weight:700;
-    opacity:0.55;
-    text-transform:uppercase;
-    letter-spacing:0.07em;
-    margin-bottom:0.3rem;
-}
-
-.aura-learning-output{
-    padding:1.25rem 1.35rem;
-    border:1px solid rgba(0,0,0,0.08);
-    border-radius:15px;
-    background:rgba(248,250,252,0.96);
-    line-height:1.7;
-}
-
-div[data-testid="stButton"] > button{
-    border-radius:10px;
-    font-weight:650;
-}
-</style>
-""",
-        unsafe_allow_html=True
-    )
+def _show_technical_details(error):
+    """Display technical details only when the user requests them."""
+    with st.expander("Technical details"):
+        st.code(str(error))
 
 
 def learning_page():
-
-    _inject_learning_styles()
-
-    profile=learner_memory.get_profile()
-
     # --------------------------------------------------
-    # HERO
+    # PAGE INTRODUCTION
     # --------------------------------------------------
 
-    st.markdown(
-        """<div class="aura-learning-hero">
-<div class="aura-learning-eyebrow">AI Powered Study Workspace</div>
-<div class="aura-learning-title">Accessible Learning</div>
-<div class="aura-learning-subtitle">
-Upload notes, scanned material or educational content.<br>
-AURA extracts the text and transforms it into personalized,
-accessible learning material.
-</div>
-</div>""",
-        unsafe_allow_html=True
+    st.title("Accessible Learning")
+
+    st.write(
+        "Upload study material, review the extracted text, "
+        "and generate personalized learning content. "
+        "You can also convert the explanation into audio."
     )
 
     # --------------------------------------------------
-    # CHECK PROFILE
+    # CHECK LEARNER PROFILE
     # --------------------------------------------------
 
+    profile = learner_memory.get_profile()
+
     if profile is None:
-
         st.warning(
-            "Create and save your Student Profile first so AURA can personalize this learning session."
+            "A student profile is required before starting a learning session."
         )
-
         st.info(
-            "Go to Student Profile → choose learner type and preferred learning mode → Save Profile."
+            "Open Student Profile, choose your learner type and preferred "
+            "learning mode, and save your profile."
         )
-
         return
 
     # --------------------------------------------------
     # ACCESSIBILITY CONTEXT
     # --------------------------------------------------
 
-    accessibility_context=accessibility_adapter.get_context(
-        profile
-    )
+    accessibility_context = accessibility_adapter.get_context(profile)
 
     # --------------------------------------------------
     # CURRENT LEARNING CONTEXT
     # --------------------------------------------------
 
-    st.markdown(
-        """<div class="aura-learning-card">
-<div class="aura-learning-card-title">
-Current Learning Context
-</div>
-<div class="aura-learning-card-subtitle">
-These preferences are automatically applied by AURA's AI agents
-to personalize the learning experience.
-</div>
-</div>""",
-        unsafe_allow_html=True
-    )
+    st.header("Current Learning Preferences")
 
-    st.markdown(
-        f"""<span class="aura-learning-badge">{profile.learner_type}</span>
-<span class="aura-learning-badge">{profile.preferred_mode}</span>""",
-        unsafe_allow_html=True
-    )
+    st.write(f"Learner type: {profile.learner_type}")
+    st.write(f"Preferred learning mode: {profile.preferred_mode}")
 
-    st.write("")
-
-    # --------------------------------------------------
-    # STEP 1 - UPLOAD
-    # --------------------------------------------------
-
-    st.markdown(
-        """<div class="aura-learning-card">
-<div class="aura-step">Step 1</div>
-<div class="aura-learning-card-title">
-Upload Study Material
-</div>
-<div class="aura-learning-card-subtitle">
-Upload scanned notes, textbook pages, images or PDFs.
-AURA will extract readable text using OCR.
-</div>
-</div>""",
-        unsafe_allow_html=True
-    )
-
-    uploaded_file=st.file_uploader(
-        "Study Material",
-        type=[
-            "png",
-            "jpg",
-            "jpeg",
-            "pdf"
-        ],
-        help="Supported formats: PNG, JPG, JPEG and PDF."
+    st.caption(
+        "AURA uses these preferences to personalize the learning content."
     )
 
     # --------------------------------------------------
-    # OCR
+    # STEP 1 - UPLOAD STUDY MATERIAL
     # --------------------------------------------------
 
-    if uploaded_file:
+    st.header("Step 1: Upload Study Material")
 
-        st.success(
-            f"{uploaded_file.name} uploaded successfully."
-        )
+    st.write(
+        "Upload a scanned note, textbook page, image, or PDF. "
+        "AURA will attempt to extract the text."
+    )
+
+    uploaded_file = st.file_uploader(
+        "Choose study material",
+        type=["png", "jpg", "jpeg", "pdf"],
+        help="Supported formats: PNG, JPG, JPEG, and PDF.",
+        key="learning_uploaded_file",
+    )
+
+    if uploaded_file is not None:
+        st.success(f"Uploaded file: {uploaded_file.name}")
 
         if st.button(
             "Extract Text",
-            use_container_width=True
+            use_container_width=True,
+            key="extract_learning_text",
         ):
-
-            with st.spinner(
-                "Reading your study material..."
-            ):
-
+            with st.spinner("Reading the study material..."):
                 try:
+                    extracted_text = extract_text(uploaded_file)
+                    extracted_text = clean_ocr_text(extracted_text)
 
-                    extracted_text=extract_text(
-                        uploaded_file
+                    st.session_state["learning_extracted_text"] = (
+                        extracted_text or ""
                     )
 
-                    extracted_text=clean_ocr_text(
-                        extracted_text
-                    )
-
-                    st.session_state[
-                        "learning_extracted_text"
-                    ]=extracted_text
-
+                    # New source material invalidates the previous answer.
                     st.session_state.pop(
-                        "learning_generated_content",
-                        None
+                        "learning_generated_content", None
+                    )
+                    st.session_state.pop(
+                        "learning_audio_path", None
                     )
 
-                    st.success(
-                        "Text extracted successfully."
-                    )
-
-                except Exception as e:
-
-                    st.error(
-                        "Unable to extract text from this material."
-                    )
-
-                    with st.expander(
-                        "Technical details"
-                    ):
-
-                        st.code(
-                            str(e)
+                    if extracted_text and extracted_text.strip():
+                        st.success(
+                            "Text extraction finished. "
+                            "Review the extracted text in Step 2."
+                        )
+                    else:
+                        st.warning(
+                            "No readable text was extracted. "
+                            "Try a clearer image or a PDF with readable text."
                         )
 
+                except Exception as error:
+                    st.error(
+                        "Unable to extract text from this material. "
+                        "Check the file and try again."
+                    )
+                    _show_technical_details(error)
+
     # --------------------------------------------------
-    # GET OCR RESULT
+    # STEP 2 - REVIEW EXTRACTED TEXT
     # --------------------------------------------------
 
-    extracted_text=st.session_state.get(
-        "learning_extracted_text"
+    extracted_text = st.session_state.get(
+        "learning_extracted_text", ""
     )
 
-    # --------------------------------------------------
-    # STEP 2 - REVIEW OCR TEXT
-    # --------------------------------------------------
+    if extracted_text and extracted_text.strip():
+        st.header("Step 2: Review Extracted Text")
 
-    if extracted_text:
-
-        st.write("")
-
-        st.markdown(
-            """<div class="aura-learning-card">
-<div class="aura-step">Step 2</div>
-<div class="aura-learning-card-title">
-Review Extracted Text
-</div>
-<div class="aura-learning-card-subtitle">
-Review and edit the OCR result before generating
-personalized accessible learning content.
-</div>
-</div>""",
-            unsafe_allow_html=True
+        st.write(
+            "Check the extracted text for OCR mistakes. "
+            "You can edit it before generating the learning content."
         )
 
-        edited_text=st.text_area(
-            "Extracted Text",
+        edited_text = st.text_area(
+            "Extracted text (editable)",
             value=extracted_text,
-            height=260
+            height=260,
+            help=(
+                "Correct missing words or recognition errors before "
+                "generating the explanation."
+            ),
+            key="learning_edited_text",
         )
 
-        st.session_state[
-            "learning_extracted_text"
-        ]=edited_text
-
-        # --------------------------------------------------
-        # CONTENT AGENT
-        # --------------------------------------------------
+        # Keep the session value synchronized with the edited text.
+        st.session_state["learning_extracted_text"] = edited_text
 
         if st.button(
             "Generate Accessible Learning Content",
             type="primary",
-            use_container_width=True
+            use_container_width=True,
+            key="generate_learning_content",
         ):
-
-            with st.spinner(
-                "AURA is creating personalized learning content..."
-            ):
-
-                try:
-
-                    result=run_content_agent(
-                        user_request=edited_text,
-                        learner_profile=profile,
-                        accessibility_context=accessibility_context
-                    )
-
-                    if result.get(
-                        "status"
-                    )=="success":
-
-                        generated_content=result.get(
-                            "content",
-                            ""
+            if not edited_text.strip():
+                st.warning(
+                    "The extracted text is empty. Enter or extract "
+                    "some study material before continuing."
+                )
+            else:
+                with st.spinner(
+                    "AURA is creating personalized learning content..."
+                ):
+                    try:
+                        result = run_content_agent(
+                            user_request=edited_text,
+                            learner_profile=profile,
+                            accessibility_context=accessibility_context,
                         )
 
-                        st.session_state[
-                            "learning_generated_content"
-                        ]=generated_content
+                        if result.get("status") == "success":
+                            generated_content = result.get("content", "")
 
-                        st.success(
-                            "Accessible learning content generated successfully."
-                        )
-
-                    else:
-
-                        st.error(
-                            result.get(
-                                "content",
-                                "Unable to generate learning content."
-                            )
-                        )
-
-                        if result.get(
-                            "error"
-                        ):
-
-                            with st.expander(
-                                "Technical details"
+                            if (
+                                isinstance(generated_content, str)
+                                and generated_content.strip()
                             ):
+                                st.session_state[
+                                    "learning_generated_content"
+                                ] = generated_content
 
-                                st.code(
-                                    result["error"]
+                                st.session_state.pop(
+                                    "learning_audio_path", None
                                 )
 
-                except Exception as e:
+                                st.success(
+                                    "Learning content generated successfully. "
+                                    "Continue to Step 3."
+                                )
+                            else:
+                                st.session_state.pop(
+                                    "learning_generated_content", None
+                                )
+                                st.error(
+                                    "The content agent returned an empty "
+                                    "response. Please try again."
+                                )
+                        else:
+                            error_message = result.get(
+                                "content",
+                                "Unable to generate learning content.",
+                            )
 
-                    st.error(
-                        "Unable to generate learning content."
-                    )
+                            st.error(str(error_message))
 
-                    with st.expander(
-                        "Technical details"
-                    ):
+                            if result.get("error"):
+                                _show_technical_details(result["error"])
 
-                        st.code(
-                            str(e)
+                    except Exception as error:
+                        st.error(
+                            "Unable to generate learning content. "
+                            "Please try again."
                         )
+                        _show_technical_details(error)
 
     # --------------------------------------------------
-    # GENERATED CONTENT
+    # STEP 3 - DISPLAY PERSONALIZED CONTENT
     # --------------------------------------------------
 
-    generated_content=st.session_state.get(
-        "learning_generated_content"
+    generated_content = st.session_state.get(
+        "learning_generated_content", ""
     )
 
-    # --------------------------------------------------
-    # STEP 3 - PERSONALIZED CONTENT
-    # --------------------------------------------------
+    if generated_content and generated_content.strip():
+        st.header("Step 3: Personalized Learning Content")
 
-    if generated_content:
-
-        st.write("")
-
-        st.markdown(
-            """<div class="aura-learning-card">
-<div class="aura-step">Step 3</div>
-<div class="aura-learning-card-title">
-Personalized Learning Content
-</div>
-<div class="aura-learning-card-subtitle">
-This explanation was generated according to the
-learner profile and accessibility requirements.
-</div>
-</div>""",
-            unsafe_allow_html=True
+        st.write(
+            f"Personalized for: {profile.learner_type}"
+        )
+        st.write(
+            f"Preferred learning mode: {profile.preferred_mode}"
         )
 
-        st.markdown(
-            f"""<span class="aura-learning-badge">{profile.learner_type}</span>
-<span class="aura-learning-badge">{profile.preferred_mode}</span>""",
-            unsafe_allow_html=True
-        )
-
-        st.write("")
-
-        # Display AI generated content normally
-        # instead of showing raw JSON/code.
-
-        st.markdown(
-            generated_content
-        )
-
-        st.write("")
+        # Markdown is rendered without enabling raw HTML.
+        st.markdown(generated_content)
 
         # --------------------------------------------------
         # STEP 4 - TEXT TO SPEECH
         # --------------------------------------------------
 
-        st.markdown(
-            """<div class="aura-learning-card">
-<div class="aura-step">Step 4</div>
-<div class="aura-learning-card-title">
-Listen to Learning Content
-</div>
-<div class="aura-learning-card-subtitle">
-Convert the personalized explanation into audio
-for a more accessible learning experience.
-</div>
-</div>""",
-            unsafe_allow_html=True
+        st.header("Step 4: Listen to Learning Content")
+
+        st.write(
+            "Generate an audio version of the explanation. "
+            "Use the audio player's controls to listen, pause, or replay."
         )
 
         if st.button(
-            "🔊 Generate Audio",
-            use_container_width=True
+            "Generate Audio",
+            use_container_width=True,
+            key="generate_learning_audio",
         ):
+            audio_path = "data/aura_learning_audio.wav"
 
-            audio_path="data/aura_learning_audio.wav"
-
-            with st.spinner(
-                "Preparing accessible audio..."
-            ):
-
+            with st.spinner("Preparing audio..."):
                 try:
-
-                    result=text_to_speech(
+                    result = text_to_speech(
                         generated_content,
-                        audio_path
+                        audio_path,
                     )
 
-                    if result["status"]=="success":
+                    if result.get("status") == "success":
+                        st.session_state[
+                            "learning_audio_path"
+                        ] = audio_path
 
-                        st.success(
-                            "Audio generated successfully."
-                        )
-
-                        st.audio(
-                            audio_path
-                        )
-
+                        st.success("Audio generated successfully.")
                     else:
-
                         st.error(
                             result.get(
                                 "message",
-                                "Unable to generate audio."
+                                "Unable to generate audio.",
                             )
                         )
 
-                except Exception as e:
-
+                except Exception as error:
                     st.error(
-                        "Unable to generate audio."
+                        "Unable to generate audio. Please try again."
                     )
+                    _show_technical_details(error)
 
-                    with st.expander(
-                        "Technical details"
-                    ):
+        saved_audio_path = st.session_state.get(
+            "learning_audio_path"
+        )
 
-                        st.code(
-                            str(e)
-                        )
+        if saved_audio_path:
+            st.subheader("Learning Content Audio")
+
+            try:
+                with open(saved_audio_path, "rb") as audio_file:
+                    audio_bytes = audio_file.read()
+
+                st.audio(
+                    audio_bytes,
+                    format="audio/wav",
+                )
+            except (OSError, ValueError) as error:
+                st.error(
+                    "The audio file could not be opened. "
+                    "Generate the audio again."
+                )
+                _show_technical_details(error)

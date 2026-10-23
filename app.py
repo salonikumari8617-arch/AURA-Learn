@@ -1,3 +1,4 @@
+
 import streamlit as st
 
 from ui.profile import show_profile
@@ -9,41 +10,63 @@ from ui.quiz import quiz_page
 from agents.register_agents import register_available_agents
 
 
+# --------------------------------------------------
+# PAGE CONFIGURATION
+# --------------------------------------------------
+
 st.set_page_config(
-    page_title="AURA Learn",
+    page_title="AURA Learn - Accessible Learning Assistant",
     page_icon="🎓",
     layout="wide"
 )
 
 
+# --------------------------------------------------
+# AGENT REGISTRATION
+# --------------------------------------------------
+
 register_available_agents()
 
 
+# --------------------------------------------------
+# ACCESSIBLE NAVIGATION
+# --------------------------------------------------
+
 st.sidebar.title("AURA Learn")
 
-page=st.sidebar.radio(
-    "Navigation",
+st.sidebar.caption(
+    "Accessible personalized learning assistant. "
+    "Choose a page from the navigation options below."
+)
+
+page = st.sidebar.radio(
+    "Choose a page",
     [
         "Student Profile",
         "Learning",
         "AI Tutor",
         "Quiz & Assessment",
         "Progress Dashboard"
-    ]
+    ],
+    key="main_navigation"
 )
 
 
-if page=="Student Profile":
+# --------------------------------------------------
+# PAGE ROUTING
+# --------------------------------------------------
+
+if page == "Student Profile":
     show_profile()
 
-elif page=="Learning":
+elif page == "Learning":
     learning_page()
 
-elif page=="AI Tutor":
+elif page == "AI Tutor":
     tutor_page()
 
-elif page=="Quiz & Assessment":
+elif page == "Quiz & Assessment":
     quiz_page()
 
-elif page=="Progress Dashboard":
+elif page == "Progress Dashboard":
     show_progress()
